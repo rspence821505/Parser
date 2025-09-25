@@ -1,130 +1,23 @@
 #include <array>         // std::array
-#include <charconv>      // std::from_chars
+#include <cmath>         // std::sqrt
 #include <deque>         // std::deque
 #include <fstream>       // std::ifstream
 #include <iostream>      // std::cout, std::cerr, etc.
-#include <stdexcept>     // std::invalid_argument
-#include <string>        // std::string
+#include <numeric>       // std::accumulate
 #include <system_error>  // std::errc
 #include <unordered_map> // std::unordered_map
 
-enum class IndicatorType { SMA, EMA, VOLATILITY, VWAP };
-
-struct ParseStats {
-  size_t total_lines = 0;
-  size_t parsed_successfully = 0;
-  size_t parse_failures = 0;
-};
-
-struct ParsedRow {
-  std::string timestamp;
-  std::string symbol;
-  double price;
-  long volume;
-  bool is_valid;
-
-  // Constructor for invalid rows
-  static ParsedRow invalid() { return {"", "", 0.0, 0, false}; }
-};
-
-struct FieldRange {
-  const char *start;
-  size_t length;
-
-  // Helper for std::from_chars
-  const char *end() const { return start + length; }
-};
-
-class SMAIndicator {
-  std::deque<double> prices;
-  int window_size;
-
-public:
-  SMAIndicator(int window) : window_size(window) {}
-  void update(double price);
-  double get_value() const;
-};
-
-class EMAIndicator {
-  double current_ema = 0.0;
-  double alpha;
-  bool first_price = true;
-
-public:
-  EMAIndicator(double smoothing_factor) : alpha(smoothing_factor) {}
-  void update(double price);
-  double get_value() const;
-};
-
-class VolatilityIndicator {
-  std::deque<double> returns;
-  int window_size;
-
-public:
-  VolatilityIndicator(int window) : window_size(window) {};
-  void update(double return_val);
-  double get_value() const;
-};
-
-class VWAPIndicator {
-  double price_volume_sum = 0.0;
-  long volume_sum = 0;
-
-public:
-  void update(double price, long volume);
-  double get_value() const;
-};
-class Series {
-  SMAIndicator sma;
-  EMAIndicator ema;
-  VolatilityIndicator volatility;
-  VWAPIndicator vwap;
-
-  double last_price; // Shared state for return calculations
-
-public:
-  Series(int sma_window, double ema_alpha, int vol_window)
-      : sma(sma_window), ema(ema_alpha), volatility(vol_window),
-        last_price(0.0) {};
-
-  void update(double price, long volume, std::string &ts) {
-
-    // Handle first-time initialization
-    if (last_price == 0) {
-      last_price = price;
-      return;
-    };
-
-    // Compute derived values (like price returns)
-    double return_value = (price / last_price) - 1.0;
-
-    // Update each indicator with appropriate data
-    sma.update(price);
-    ema.update(price);
-    volatility.update(return_value);
-    vwap.update(price, volume);
-
-    // Update last price
-    last_price = price;
-  };
-  double get_indicator(IndicatorType type) const {
-    switch (type) {
-    case ::IndicatorType::SMA:
-      return sma.get_value();
-    case ::IndicatorType::EMA:
-      return ema.get_value();
-    case ::IndicatorType::VOLATILITY:
-      return volatility.get_value();
-    case ::IndicatorType::VWAP:
-      return vwap.get_value();
-    default:
-      throw std::invalid_argument("Unknown Indicator Type");
-    };
-  };
-};
+#include "csv.hpp"
+#include "indicators.hpp"
 
 class CSVAnalyzer {
 private:
+  // CLI configuration
+  int sma_window = 0;
+  double ema_alpha = 0.0;
+  int vol_window = 0;
+  bool calculate_vwap = false;
+  std::string filter_symbol = ""; // empty means all symbols
   std::unordered_map<std::string, Series> symbol_data;
   ParseStats stats;
 
