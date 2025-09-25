@@ -1,5 +1,5 @@
-#include "csv.hpp"
-#include "indicators.hpp"
+#include "../include/csv.hpp"
+#include "../include/indicators.hpp"
 #include <array>
 #include <cmath>
 #include <deque>

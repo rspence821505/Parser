@@ -39,3 +39,40 @@
 
 # debug information files
 *.dwo
+
+
+# Compiled executables
+analyzer
+analyzer.exe
+
+
+# Debug files
+*.dSYM/
+*.su
+*.idb
+
+# Build directories
+build/
+cmake-build-*/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Output files (generated during testing)
+output/*.csv
+*.csv
+!tests/data/*.csv  # Keep test data files
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# CMake files
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
