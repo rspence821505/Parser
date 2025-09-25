@@ -1,3 +1,5 @@
+#ifndef CSV_HPP
+#define CSV_HPP
 
 #include <charconv>
 #include <iostream>
@@ -89,3 +91,5 @@ CLIConfig parse_cli_args(int argc, char *argv[]) {
 
   return config;
 }
+
+#endif

@@ -1,3 +1,6 @@
+#ifndef INDICATORS_HPP
+#define INDICATORS_HPP
+
 #include <cmath>
 #include <deque>
 #include <numeric>
@@ -155,3 +158,5 @@ public:
     }
   }
 };
+
+#endif
