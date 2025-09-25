@@ -1,7 +1,8 @@
 
-#include <charconv>  // std::from_chars
-#include <stdexcept> // std::invalid_argument
-#include <string>    // std::string, std::stoi
+#include <charconv>
+#include <iostream>
+#include <stdexcept>
+#include <string>
 
 struct CLIConfig {
 
@@ -54,7 +55,7 @@ CLIConfig parse_cli_args(int argc, char *argv[]) {
   for (int i = 1; i < argc; i++) {
     std::string arg = argv[i];
 
-    if (arg.starts_with("--")) {
+    if (arg.length() >= 2 && arg.substr(0, 2) == "--") {
       auto eq_pos = arg.find('=');
       if (eq_pos != std::string::npos) {
         std::string key = arg.substr(2, eq_pos - 2);

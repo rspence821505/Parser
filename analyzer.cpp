@@ -1,106 +1,165 @@
-#include <array>         // std::array
-#include <cmath>         // std::sqrt
-#include <deque>         // std::deque
-#include <fstream>       // std::ifstream
-#include <iostream>      // std::cout, std::cerr, etc.
-#include <numeric>       // std::accumulate
-#include <system_error>  // std::errc
-#include <unordered_map> // std::unordered_map
-
 #include "csv.hpp"
 #include "indicators.hpp"
+#include <array>
+#include <cmath>
+#include <deque>
+#include <fstream>
+#include <iostream>
+#include <numeric>
+#include <system_error>
+#include <unordered_map>
 
 class CSVAnalyzer {
 private:
   // CLI configuration
-  int sma_window = 0;
-  double ema_alpha = 0.0;
-  int vol_window = 0;
-  bool calculate_vwap = false;
-  std::string filter_symbol = ""; // empty means all symbols
+  CLIConfig config;
   std::unordered_map<std::string, Series> symbol_data;
   ParseStats stats;
 
 public:
+  CSVAnalyzer(const CLIConfig &cli_config) : config(cli_config) {}
+
   std::array<FieldRange, 4> split_csv_line(const std::string &line) {
     const char *data = line.data();
-    const char *current = data;
-    std::array<FieldRange, 4> fields;
+    std::array<FieldRange, 4> fields = {}; // Initialize to zeros
     int field_index = 0;
+    size_t start = 0;
 
-    const char *field_start = current;
-
-    // Walk through the line character by character
-    for (size_t i = 0; i < line.length(); ++i) {
-      if (line[i] == ',') {
-        // Found comma - end of current field
-        fields[field_index] = {field_start, current - field_start};
+    for (size_t i = 0; i <= line.length() && field_index < 4; ++i) {
+      if (i == line.length() || line[i] == ',') {
+        fields[field_index] = {data + start, i - start};
         field_index++;
-        field_start = current + 1; // Next field starts after comma
+        start = i + 1;
       }
-      current++;
     }
 
-    // Last field (no trailing comma)
-    fields[field_index] = {field_start, current - field_start};
-
     return fields;
-  };
+  }
 
   ParsedRow parse_line(const std::string &line) {
     auto fields = split_csv_line(line);
 
-    // Validate we got 4 fields
-    if (fields.length != 4) {
+    if (fields.size() != 4) {
       return ParsedRow::invalid();
-    };
+    }
 
     // Extract timestamp and symbol
     std::string timestamp(fields[0].start, fields[0].length);
     std::string symbol(fields[1].start, fields[1].length);
 
-    // Parse each field using std::from_chars
-    // Parse price
-    double price;
-    auto result = std::from_chars(fields[2].start, fields[2].end(), price);
-    if (result.ec != std::errc{}) {
-      return ParsedRow::invalid();
-    };
-    // Parse volume
-    long volume;
-    auto vol_result = std::from_chars(fields[3].start, fields[3].end(), volume);
-    if (vol_result.ec != std::errc{}) {
-      return ParsedRow::invalid();
-    };
+    // Parse price and volume
+    try {
+      std::string price_str(fields[2].start, fields[2].length);
+      std::string volume_str(fields[3].start, fields[3].length);
 
-    // Return valid ParsedRow
-    return {timestamp, symbol, price, volume, true};
-  };
+      double price = std::stod(price_str);
+      long volume = std::stol(volume_str);
+
+      return {timestamp, symbol, price, volume, true};
+    } catch (const std::exception &) {
+      return ParsedRow::invalid();
+    }
+  }
+
   Series &get_or_create_series(const std::string &symbol) {
-
     if (symbol_data.find(symbol) == symbol_data.end()) {
-      symbol_data.emplace(symbol, Series(sma_window, ema_alpha, vol_window));
-    };
-    return symbol_data[symbol];
-  };
+      double ema_alpha = span_to_alpha(config.ema_span);
+      symbol_data.emplace(
+          symbol, Series(config.sma_window, ema_alpha, config.vol_window));
+    }
+    return symbol_data.at(symbol);
+  }
 
   void process_file(const std::string &filename) {
-
     std::ifstream file(filename);
+
+    if (!file.is_open()) {
+      std::cerr << "Error: Cannot open file '" << filename << "'\n";
+      return;
+    }
+
+    // Print CSV header
+    print_csv_header();
+
     std::string line;
-
     while (std::getline(file, line)) {
-      // Parse line
-      auto parsed_row = parse_line(line);
-
-      // Handle parsing failures
-      if (!parsed_row.is_valid())
+      if (line.empty())
         continue;
-      // Find/create Series
+
+      auto parsed_row = parse_line(line);
+      if (!parsed_row.is_valid)
+        continue;
+
+      // Apply symbol filtering
+      if (!config.filter_symbol.empty() &&
+          parsed_row.symbol != config.filter_symbol) {
+        continue;
+      }
+
       auto &series = get_or_create_series(parsed_row.symbol);
-      // Update Series
       series.update(parsed_row.price, parsed_row.volume, parsed_row.timestamp);
-      // Handle output?
-    };
-  };
+
+      // Output the row with current indicator values
+      print_csv_row(parsed_row, series);
+    }
+  }
+
+  void print_csv_header() const {
+    std::cout << "timestamp, symbol, price, volume";
+
+    if (config.output_sma) {
+      std::cout << ",sma";
+    }
+    if (config.output_ema) {
+      std::cout << ",ema";
+    }
+    if (config.output_vol) {
+      std::cout << ",volatility";
+    }
+    if (config.output_vwap) {
+      std::cout << ",vwap";
+    }
+
+    std::cout << std::endl;
+  }
+
+  void print_csv_row(const ParsedRow &row, const Series &series) const {
+    std::cout << row.timestamp << "," << row.symbol << "," << row.price << ","
+              << row.volume;
+    if (config.output_sma) {
+      std::cout << "," << series.get_indicator(IndicatorType::SMA);
+    }
+    if (config.output_ema) {
+      std::cout << "," << series.get_indicator(IndicatorType::SMA);
+    }
+    if (config.output_vol) {
+      std::cout << "," << series.get_indicator(IndicatorType::VOLATILITY);
+    }
+    if (config.output_vwap) {
+      std::cout << "," << series.get_indicator(IndicatorType::VWAP);
+    }
+    std::cout << std::endl;
+  }
 };
+
+int main(int argc, char *argv[]) {
+
+  try {
+    // Parse CLI arguments
+    CLIConfig config = parse_cli_args(argc, argv);
+
+    // Validate required arguments
+    if (config.input_filename.empty()) {
+      std::cerr << "Usage: analyzer [--sma=N] [--ema=N] [--vol=N] "
+                   "[---vwap=daily] [--symbol=SYM] filename.csv\n";
+      return 1;
+    }
+    CSVAnalyzer analyzer(config);
+    analyzer.process_file(config.input_filename);
+
+    return 0;
+  } catch (const std::exception &e) {
+    std::cerr << "Error: " << e.what() << '\n';
+    return 1;
+  }
+}

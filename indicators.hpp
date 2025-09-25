@@ -1,8 +1,8 @@
-#include <cmath>     // std::sqrt
-#include <deque>     // std::deque
-#include <numeric>   // std::accumulate
-#include <stdexcept> // std::invalid_argument
-#include <string>    // std::string
+#include <cmath>
+#include <deque>
+#include <numeric>
+#include <stdexcept>
+#include <string>
 
 enum class IndicatorType { SMA, EMA, VOLATILITY, VWAP };
 
@@ -18,14 +18,14 @@ public:
     // Remove old prices if window is full
     if (prices.size() > window_size) {
       prices.pop_front();
-    };
-  };
+    }
+  }
   double get_value() const {
     if (prices.empty())
       return 0.0;
     return std::accumulate(prices.begin(), prices.end(), 0.0) /
            static_cast<double>(prices.size());
-  };
+  }
 };
 
 class EMAIndicator {
@@ -39,10 +39,10 @@ public:
     if (first_price) {
       current_ema = price;
       first_price = false;
-    }; else {
+    } else {
       current_ema = alpha * price + (1 - alpha) * current_ema;
-    };
-  };
+    }
+  }
   double get_value() const { return current_ema; }
 };
 
@@ -121,40 +121,37 @@ class Series {
 public:
   Series(int sma_window, double ema_alpha, int vol_window)
       : sma(sma_window), ema(ema_alpha), volatility(vol_window),
-        last_price(0.0) {};
+        last_price(0.0) {}
 
-  void update(double price, long volume, std::string &ts) {
-
-    // Handle first-time initialization
+  void update(double price, long volume,
+              const std::string &ts) { // Fix parameter
     if (last_price == 0) {
       last_price = price;
       return;
-    };
+    }
 
-    // Compute derived values (like price returns)
     double return_value = (price / last_price) - 1.0;
 
-    // Update each indicator with appropriate data
     sma.update(price);
     ema.update(price);
     volatility.update(return_value);
     vwap.update(price, volume, ts);
 
-    // Update last price
     last_price = price;
-  };
+  }
+
   double get_indicator(IndicatorType type) const {
     switch (type) {
-    case ::IndicatorType::SMA:
+    case IndicatorType::SMA:
       return sma.get_value();
-    case ::IndicatorType::EMA:
+    case IndicatorType::EMA:
       return ema.get_value();
-    case ::IndicatorType::VOLATILITY:
+    case IndicatorType::VOLATILITY:
       return volatility.get_value();
-    case ::IndicatorType::VWAP:
+    case IndicatorType::VWAP:
       return vwap.get_value();
     default:
       throw std::invalid_argument("Unknown Indicator Type");
-    };
-  };
+    }
+  }
 };
