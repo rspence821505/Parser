@@ -83,6 +83,9 @@ CLIConfig parse_cli_args(int argc, char *argv[]) {
         } else {
           throw std::invalid_argument("Unknown key: " + key);
         }
+      } else {
+        throw std::invalid_argument("Invalid flag format: " + arg +
+                                    " (use --key=value)");
       }
     } else {
       config.input_filename = arg;
